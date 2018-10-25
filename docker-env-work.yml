@@ -1,0 +1,84 @@
+#docker stack deploy --compose-file docker-env-work.yml work
+#docker stack rm work
+
+version: '3.3'
+
+services:
+  jobmanager:
+    image: flink
+    ports:
+      - "8085:8081"
+      - "6123:6123"
+    networks:
+      - work
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+
+  taskmanager:
+    image: flink
+    ports:
+      - "6121:6121"
+      - "6122:6122"
+    networks:
+      - work
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=jobmanager
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - work
+
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+      - "1099:1099"
+    depends_on:
+      - zookeeper
+    networks:
+      - work
+    environment:
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=127.0.0.1 -Dcom.sun.management.jmxremote.rmi.port=1099"
+      JMX_PORT: 1099
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  postgres:
+    image: postgres:9.6
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - work
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+  
+  pgadmin:
+    image: thajeztah/pgadmin4
+    ports:
+      - 5050:5050
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin-data:/pgadmin
+    networks:
+      - work
+
+networks:
+  work:
+volumes:
+  postgres-data:
+  pgadmin-data:
+  control-center:
